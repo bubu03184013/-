@@ -7,15 +7,21 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm install --no-audit --no-fund
-      - run: npm run lint
-      - run: npm run dist
-      - uses: actions/upload-artifact@v4
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Validate source
+        run: npm run lint
+      - name: Build Windows installer and portable app
+        run: npm run dist
+      - name: Upload EXE artifacts
+        uses: actions/upload-artifact@v4
         with:
           name: beijing-floating-clock-windows
           path: dist/*
+          if-no-files-found: error
