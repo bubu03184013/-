@@ -1,18 +1,32 @@
-const app=document.querySelector('#app'),orb=document.querySelector('#orb'),primary=document.querySelector('#orb-primary'),secondary=document.querySelector('#orb-secondary'),panel=document.querySelector('#calendar-panel'),grid=document.querySelector('#calendar-grid'),week=document.querySelector('#calendar-week'),yearEl=document.querySelector('#year-label'),monthEl=document.querySelector('#month-label'),info=document.querySelector('#selected-lunar');
-const TZ='Asia/Shanghai', names=['一','二','三','四','五','六','日'];
-const holidays=[['中秋节','2026-09-25','2026-09-27'],['国庆节','2026-10-01','2026-10-07']];
-let timer=null,holidayMode=false,open=false,y,m,selected='';
+const app=document.querySelector('#app');
+const orb=document.querySelector('#orb');
+const primary=document.querySelector('#orb-primary');
+const secondary=document.querySelector('#orb-secondary');
+const panel=document.querySelector('#calendar-panel');
+const grid=document.querySelector('#calendar-grid');
+const week=document.querySelector('#calendar-week');
+const yearEl=document.querySelector('#year-label');
+const monthEl=document.querySelector('#month-label');
+const info=document.querySelector('#selected-lunar');
+const TZ='Asia/Shanghai';
+const weekNames=['一','二','三','四','五','六','日'];
+const holidays=[{name:'中秋节',start:'2026-09-25',end:'2026-09-27'},{name:'国庆节',start:'2026-10-01',end:'2026-10-07'}];
+let hoverTimer=null,holidayMode=false,open=false,viewYear,viewMonth,selectedDate='';
 const pad=n=>String(n).padStart(2,'0');
-function parts(d=new Date()){let a=Object.fromEntries(new Intl.DateTimeFormat('zh-CN',{timeZone:TZ,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(d).map(x=>[x.type,x.value]));return Object.fromEntries(['year','month','day','hour','minute','second'].map(k=>[k,+a[k]]));}
-function ms(s){return Date.parse(s+'T00:00:00+08:00')}
-function cd(x){let t=Math.max(0,Math.floor(x/1000)),d=Math.floor(t/86400),h=Math.floor(t%86400/3600),m=Math.floor(t%3600/60),s=t%60;return d?pad(d)+'d '+pad(h)+'h':pad(h)+':'+pad(m)+':'+pad(s)}
-function nextHoliday(){let n=Date.now();return holidays.map(x=>({...x,a:ms(x[1])})).find(x=>x.a>n)||holidays[0]}
-function update(){let n=new Date(),p=parts(n);if(!app.classList.contains('hovering')){primary.textContent=pad(p.hour)+':'+pad(p.minute);secondary.textContent='北京时间';return}if(holidayMode){let h=nextHoliday();primary.textContent=cd(h.a-n);secondary.textContent=h[0]}else{let target=Date.UTC(p.year,p.month-1,p.day+(p.hour>=18?1:0),10);primary.textContent=cd(target-n);secondary.textContent='距 18:00'}}
-orb.onmouseenter=()=>{if(open)return;app.classList.add('hovering');holidayMode=false;clearTimeout(timer);timer=setTimeout(()=>{holidayMode=true;app.classList.add('holiday-mode');update()},3000);update()};
-orb.onmouseleave=()=>{clearTimeout(timer);app.classList.remove('hovering','holiday-mode');holidayMode=false;update()};
-orb.onclick=()=>open?close():openCal();
-function openCal(){open=true;let p=parts();y=p.year;m=p.month-1;selected=y+'-'+pad(m+1)+'-'+pad(p.day);app.classList.add('expanded');render();floatingClock?.setExpanded?.(true)}
-function close(){open=false;app.classList.remove('expanded');floatingClock?.setExpanded?.(false);update()}
-function lunar(d){try{let z=new Intl.DateTimeFormat('zh-CN-u-ca-chinese',{timeZone:TZ,month:'long',day:'numeric'}).formatToParts(d),mo=z.find(x=>x.type==='month')?.value||'',da=z.find(x=>x.type==='day')?.value||'';return mo+da}catch{return '农历'}}
-function render(){yearEl.textContent=y+'年';monthEl.textContent=(m+1)+'月';week.innerHTML=names.map(x=>'<div class="weekday">'+x+'</div>').join('');let first=new Date(Date.UTC(y,m,1)),start=(first.getUTCDay()+6)%7,count=new Date(Date.UTC(y,m+1,0)).getUTCDate(),total=Math.ceil((start+count)/7)*7,h='';for(let i=0;i<total;i++){let d=i-start+1,yy=y,mm=m;if(d<1){mm--;if(mm<0){mm=11;yy--}d=new Date(Date.UTC(yy,mm+1,0)).getUTCDate()+d}else if(d>count){mm++;if(mm>11){mm=0;yy++}d-=count}let key=yy+'-'+pad(mm+1)+'-'+pad(d),muted=mm!==m,hol=holidays.some(q=>ms(key)>=ms(q[1])&&ms(key)<=ms(q[2])),today=parts();let isToday=yy===today.year&&mm===today.month-1&&d===today.day;h+=`<button class="day ${muted?'muted':''} ${isToday?'today':''} ${key===selected?'selected':''} ${hol?'day-holiday':''}" data-date="${key}"><span class="day-inner"><span class="day-face">${d}</span><span class="day-face lunar-face"><span class="lunar-num">${lunar(new Date(Date.UTC(yy,mm,d,4)))}</span></span></span></button>`}grid.innerHTML=h;grid.querySelectorAll('.day').forEach(b=>b.onclick=()=>{selected=b.dataset.date;b.classList.toggle('flipped');grid.querySelectorAll('.day').forEach(x=>x!==b&&x.classList.remove('selected'));b.classList.add('selected');info.textContent=b.dataset.date+' · '+lunar(new Date(b.dataset.date+'T04:00:00+08:00'))})}
-document.querySelector('#prev-month').onclick=e=>{e.stopPropagation();if(--m<0){m=11;y--}render()};document.querySelector('#next-month').onclick=e=>{e.stopPropagation();if(++m>11){m=0;y++}render()};panel.onmouseleave=()=>{if(open)close()};setInterval(update,250);update();
+function beijingParts(date=new Date()){const parts=new Intl.DateTimeFormat('zh-CN',{timeZone:TZ,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(date);const out={};for(const p of parts)out[p.type]=Number(p.value);return out;}
+function shanghaiMs(iso){return Date.parse(iso+'T00:00:00+08:00');}
+function countdown(msLeft){let seconds=Math.max(0,Math.floor(msLeft/1000));const days=Math.floor(seconds/86400);seconds%=86400;const hours=Math.floor(seconds/3600);seconds%=3600;const minutes=Math.floor(seconds/60);const secs=seconds%60;return days?pad(days)+'d '+pad(hours)+'h':pad(hours)+':'+pad(minutes)+':'+pad(secs);}
+function nextHoliday(){const now=Date.now();for(const h of holidays){const start=shanghaiMs(h.start);if(start>now)return Object.assign({},h,{startMs:start});}return null;}
+function next1800(){const p=beijingParts();const day=p.hour>=18?1:0;return Date.parse(p.year+'-'+pad(p.month)+'-'+pad(p.day+day)+'T18:00:00+08:00');}
+function updateOrb(){const now=Date.now(),p=beijingParts();if(!app.classList.contains('hovering')){primary.textContent=pad(p.hour)+':'+pad(p.minute);secondary.textContent='北京时间';return;}if(holidayMode){const h=nextHoliday();if(!h){primary.textContent='—';secondary.textContent='暂无节假日';return;}primary.textContent=countdown(h.startMs-now);secondary.textContent=h.name;}else{primary.textContent=countdown(next1800()-now);secondary.textContent='距 18:00';}}
+orb.addEventListener('mouseenter',()=>{if(open)return;app.classList.add('hovering');app.classList.remove('holiday-mode');holidayMode=false;clearTimeout(hoverTimer);hoverTimer=setTimeout(()=>{holidayMode=true;app.classList.add('holiday-mode');updateOrb();},3000);updateOrb();});
+orb.addEventListener('mouseleave',()=>{clearTimeout(hoverTimer);app.classList.remove('hovering','holiday-mode');holidayMode=false;updateOrb();});
+orb.addEventListener('click',()=>open?closeCalendar():openCalendar());
+function openCalendar(){open=true;const p=beijingParts();viewYear=p.year;viewMonth=p.month-1;selectedDate=p.year+'-'+pad(p.month)+'-'+pad(p.day);app.classList.add('expanded');renderCalendar();if(window.floatingClock)window.floatingClock.setExpanded(true);}
+function closeCalendar(){open=false;app.classList.remove('expanded');if(window.floatingClock)window.floatingClock.setExpanded(false);updateOrb();}
+function lunarLabel(date){try{return new Intl.DateTimeFormat('zh-CN-u-ca-chinese',{timeZone:TZ,month:'long',day:'numeric'}).format(date);}catch(e){return '农历';}}
+function renderCalendar(){yearEl.textContent=viewYear+'年';monthEl.textContent=(viewMonth+1)+'月';week.innerHTML=weekNames.map(x=>'<div class="weekday">'+x+'</div>').join('');const first=new Date(Date.UTC(viewYear,viewMonth,1));const start=(first.getUTCDay()+6)%7;const count=new Date(Date.UTC(viewYear,viewMonth+1,0)).getUTCDate();const total=Math.ceil((start+count)/7)*7;let html='';for(let i=0;i<total;i++){let d=i-start+1,y=viewYear,m=viewMonth;if(d<1){m--;if(m<0){m=11;y--;}d=new Date(Date.UTC(y,m+1,0)).getUTCDate()+d;}else if(d>count){m++;if(m>11){m=0;y++;}d-=count;}const key=y+'-'+pad(m+1)+'-'+pad(d);const muted=m!==viewMonth;const holiday=holidays.some(h=>shanghaiMs(key)>=shanghaiMs(h.start)&&shanghaiMs(key)<=shanghaiMs(h.end));const now=beijingParts();const today=y===now.year&&m===now.month-1&&d===now.day;const lunar=lunarLabel(new Date(key+'T04:00:00+08:00'));html+='<button class="day '+(muted?'muted ':'')+(today?'today ':'')+(key===selectedDate?'selected ':'')+(holiday?'day-holiday':'')+'" data-date="'+key+'"><span class="day-inner"><span class="day-face">'+d+'</span><span class="day-face lunar-face">'+lunar+'</span></span></button>';}grid.innerHTML=html;grid.querySelectorAll('.day').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();selectedDate=btn.dataset.date;grid.querySelectorAll('.day').forEach(x=>{if(x!==btn)x.classList.remove('selected','flipped');});btn.classList.add('selected','flipped');info.textContent=selectedDate+' · '+lunarLabel(new Date(selectedDate+'T04:00:00+08:00'));}));}
+document.querySelector('#prev-month').addEventListener('click',e=>{e.stopPropagation();viewMonth--;if(viewMonth<0){viewMonth=11;viewYear--;}renderCalendar();});
+document.querySelector('#next-month').addEventListener('click',e=>{e.stopPropagation();viewMonth++;if(viewMonth>11){viewMonth=0;viewYear++;}renderCalendar();});
+panel.addEventListener('mouseleave',()=>{if(open)closeCalendar();});
+setInterval(updateOrb,250);updateOrb();
