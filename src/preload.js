@@ -1,0 +1,1 @@
+const {contextBridge,ipcRenderer}=require('electron');contextBridge.exposeInMainWorld('floatingClock',{setExpanded:v=>ipcRenderer.send('set-expanded',!!v)});
